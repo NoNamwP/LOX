@@ -1,10 +1,11 @@
 package LOX.lox;
 
 import java.util.List;
-
+import java.util.ArrayList;
 import static LOX.lox.TokenType.*;
 
 class Parser {
+  private static class ParseError extends RuntimeException {}
   private final List<Token> tokens;
   private int current = 0;
 
@@ -16,6 +17,24 @@ class Parser {
     return equality();
   }
 
+    private Stmt statement() {
+    if (match(PRINT)) return printStatement();
+
+    return expressionStatement();
+  }
+
+    private Stmt printStatement() {
+    Expr value = expression();
+    consume(SEMICOLON, "Expect ';' after value.");
+    return new Stmt.Print(value);
+  }
+
+   private Stmt expressionStatement() {
+    Expr expr = expression();
+    consume(SEMICOLON, "Expect ';' after expression.");
+    return new Stmt.Expression(expr);
+  }
+  
     private Expr equality() {
     Expr expr = comparison();
 
@@ -88,8 +107,11 @@ class Parser {
       consume(RIGHT_PAREN, "Expect ')' after expression.");
       return new Expr.Grouping(expr);
     }
+
+    throw error(peek(), "Expect expression.");
+
   }
-  
+
     private boolean match(TokenType... types) {
     for (TokenType type : types) {
       if (check(type)) {
@@ -99,6 +121,12 @@ class Parser {
     }
 
     return false;
+  }
+
+private Token consume(TokenType type, String message) {
+    if (check(type)) return advance();
+
+    throw error(peek(), message);
   }
 
     private boolean check(TokenType type) {
@@ -122,4 +150,40 @@ class Parser {
   private Token previous() {
     return tokens.get(current - 1);
   }
+
+    private ParseError error(Token token, String message) {
+    Lox.error(token, message);
+    return new ParseError();
+  }
+
+    private void synchronize() {
+    advance();
+
+    while (!isAtEnd()) {
+      if (previous().type == SEMICOLON) return;
+
+      switch (peek().type) {
+        case CLASS:
+        case FUN:
+        case VAR:
+        case FOR:
+        case IF:
+        case WHILE:
+        case PRINT:
+        case RETURN:
+          return;
+      }
+
+      advance();
+    }
+  }
+  
 }
+List<Stmt> parse() {
+    List<Stmt> statements = new ArrayList<>();
+    while (!isAtEnd()) {
+      statements.add(statement());
+    }
+
+    return statements; 
+  }
